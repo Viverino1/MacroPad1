@@ -1,194 +1,150 @@
 #include <BleKeyboard.h>
 BleKeyboard ble("Macro Pad", "Viverino1", 100);
-int buttonPins[] = {13, 12, 14, 26, 33, 15};
-int longPressTime = 300;
 
-#define dataPin 32
-#define latchPin 25
-#define clockPin 27
-void shiftBytes(byte shiftByte1, byte shiftByte2, byte shiftByte3)
-{
-   digitalWrite(latchPin, LOW);
-   shiftOut(dataPin, clockPin, LSBFIRST, shiftByte3);
-   shiftOut(dataPin, clockPin, LSBFIRST, shiftByte2);
-   shiftOut(dataPin, clockPin, LSBFIRST, shiftByte1);
-   digitalWrite(latchPin, HIGH);
+//RGB LED Decloration
+int R = 27;
+int G = 12;
+int B = 13;
+
+//Button Decloration
+int BUTTON_1 = 15;
+int BUTTON_2 = 19;
+int BUTTON_3 = 23;
+int BUTTON_4 = 18;
+
+void setup() {
+  pinMode(R, OUTPUT);
+  pinMode(G, OUTPUT);
+  pinMode(B, OUTPUT);
+
+  pinMode(BUTTON_1, INPUT_PULLUP);
+  pinMode(BUTTON_2, INPUT_PULLUP);
+  pinMode(BUTTON_3, INPUT_PULLUP);
+  pinMode(BUTTON_4, INPUT_PULLUP);
+  
+  setCpuFrequencyMhz(80); 
+  ble.begin();
+  Serial.begin(9600);
 }
 
-void SwitchStatements(int key){
-  switch(key){
-    case 111101:
-      ble.press(KEY_LEFT_ALT);
-      ble.press(KEY_TAB);
-      delay(100);
-      ble.releaseAll();
-      break;
-    case 101111:
-      ble.write(KEY_MEDIA_PLAY_PAUSE);
-      break;
-    case 11111:
-      ble.press(KEY_LEFT_CTRL);
-      ble.press(KEY_LEFT_SHIFT);
-      ble.press(KEY_TAB);
-      ble.releaseAll();
-      delay(100);
-      break;
-    case 111110:
-      ble.press(KEY_LEFT_CTRL);
-      ble.press(KEY_TAB);
-      delay(100);
-      ble.releaseAll();
-      break;
-    case 110111:
-      ble.write(KEY_MEDIA_VOLUME_UP);
-      break;
-    case 111011:
-      ble.write(KEY_MEDIA_VOLUME_DOWN);
-      break;
-    default: break;
+bool bluetoothActive = false;
+int longPressTime = 500;
+int oldInput = 0;
+int totalPressed = 0;
+int oldTotalPressed = 0;
+bool pressed = false;
+bool held = false;
+unsigned long pressTime = 0;
+
+void loop() {
+  int input = getInput();
+  int totalPressed = getTotalPressed();
+  
+  if(ble.isConnected()){
+    if(!bluetoothActive){
+      bluetoothActive = true;
+    }
+    
+    if(input != 1111){
+      //Initial Button Press
+      if(input != oldInput){
+        //Initial Specific Button Press
+        oldInput = input;
+        pressed = true;
+        held = false;
+        pressTime = millis();
+        digitalWrite(R, LOW);
+        digitalWrite(G, LOW);
+        digitalWrite(B, HIGH);
+      }else{
+        //Button Held
+        if(millis() - pressTime > longPressTime && held == false){
+          //When button is held for longPressTime
+          held = true;
+          pressed = false;
+          
+          Serial.println("Long Press");
+          Serial.println(input);
+          
+          digitalWrite(R, HIGH);
+          digitalWrite(G, HIGH);
+          digitalWrite(B, HIGH);
+        }
+      }
+    }else{
+      //Button is not held
+      if(pressed == true){
+        //Initial Release
+        Serial.println("Click");
+        Serial.println(oldInput);
+        delay(10);
+      }
+      //Button is not held
+      held = false;
+      pressed = false;
+      oldInput = 0;
+      totalPressed = 1;
+
+      digitalWrite(R, HIGH);
+      digitalWrite(G, LOW);
+      digitalWrite(B, LOW);
+      
+    }
   }
 }
 
-void SwitchStatementsLong(int key){
-  switch(key){
-    case 111101:
+int getInput(){
+  int output;
+  output = digitalRead(BUTTON_1) * 1000 + digitalRead(BUTTON_2) * 100 + digitalRead(BUTTON_3) * 10 + digitalRead(BUTTON_4);
+  return output;
+}
+
+int getTotalPressed(){
+  int output;
+  output = digitalRead(BUTTON_1) + digitalRead(BUTTON_2) + digitalRead(BUTTON_3) + digitalRead(BUTTON_4);
+  return output;
+}
+
+void handleInput(int input){
+  switch(input){
+    case 1111:
+      digitalWrite(R, LOW);
+      digitalWrite(G, LOW);
+      digitalWrite(B, LOW);
+      
+      break;
+    case 1110:
+      digitalWrite(R, HIGH);
+      digitalWrite(G, LOW);
+      digitalWrite(B, LOW);
+
       ble.press(KEY_LEFT_GUI);
       ble.press(KEY_TAB);
       delay(100);
       ble.releaseAll();
+      
       break;
-    case 101111:
-      ble.write(KEY_MEDIA_MUTE);
+    case 1101:
+      digitalWrite(R, LOW);
+      digitalWrite(G, HIGH);
+      digitalWrite(B, LOW);
+
+      ble.press(KEY_LEFT_ALT);
+      ble.press(KEY_TAB);
+      delay(100);
+      ble.releaseAll();
+      
       break;
-    case 110111:
-      ble.write(KEY_MEDIA_NEXT_TRACK);
+    case 1011:digitalWrite(R, LOW);
+      digitalWrite(G, LOW);
+      digitalWrite(B, HIGH);
+      
       break;
-    case 111011:
-      ble.write(KEY_MEDIA_PREVIOUS_TRACK);
-      break;
-    case 10101:
-      shiftBytes(0b11111111, 0b11111111, 0b11111111);
-      Serial.println("shifted");
-      break;
-    case 101010:
-      shiftBytes(0b10000000, 0b00000000, 0b00000000);
+    case 111:
+      digitalWrite(R, HIGH);
+      digitalWrite(G, HIGH);
+      digitalWrite(B, HIGH);
       break;
     default: break;
   }
-}
-
-void setup() {
-  // put your setup code here, to run once:
-  setCpuFrequencyMhz(80);
-  Serial.begin(9600);
-  //Serial.println(getXtalFrequencyMhz());  
-  ble.begin();
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_12,0);
-  
-  pinMode(2, OUTPUT);
-
-  pinMode(dataPin, OUTPUT);
-  pinMode(latchPin, OUTPUT);
-  pinMode(clockPin, OUTPUT);
-  
-  pinMode(13, INPUT_PULLDOWN);
-  pinMode(12, INPUT_PULLDOWN);
-  pinMode(14, INPUT_PULLDOWN);
-  pinMode(26, INPUT_PULLUP);
-  pinMode(33, INPUT_PULLUP);
-  pinMode(15, INPUT_PULLUP);
-}
-
-bool bleActive = false;
-void loop() {
-  // put your main code here, to run repeatedly:
-  if(ble.isConnected()){
-    if(bleActive == false){
-      bleActive = true;
-      shiftBytes(0b11111111, 0b11111111, 0b11111111);
-    }
-    digitalWrite(2, LOW);
-    macro(getbuttonInput());
-  }else{
-    //shiftBytes(0b10000000, 0b00000000, 0b00000000);
-    digitalWrite(2, HIGH);
-  }
-}
-
-int getbuttonInput(){
-  int input[6];
-  for(int i = 0; i < 3; i++){
-    input[i] = !digitalRead(buttonPins[i]);
-  }
-  for(int i = 3; i < 6; i++){
-    input[i] = digitalRead(buttonPins[i]);
-  }
-
-  int multiplier = 1;
-  int output = 0;
-  for(int i = 0; i < 6; i++){
-    output += input[i] * multiplier;
-    multiplier *= 10;
-  }
-  return output;
-}
-
-bool keyDown;
-int64_t keyDownTime;
-int lastKeyPressed;
-bool longPressed;
-bool keyCombo;
-int lastButtonSum = 0;
-void macro(int input){
-  if(input != 111111){
-    if(keyDown == false){
-      keyDown = true;
-      lastKeyPressed = input;
-      keyDownTime = esp_timer_get_time();
-      Serial.print("Key Down: ");
-      Serial.println(lastKeyPressed);
-      //digitalWrite(2, HIGH);
-    }
-
-    if(input != lastKeyPressed && lastButtonSum > findSum(input)){
-      lastButtonSum = findSum(input);
-      lastKeyPressed = input;
-      keyDownTime = esp_timer_get_time();
-      Serial.print("Combo Down: ");
-      Serial.println(lastKeyPressed);
-//      digitalWrite(2, HIGH);
-    }
-
-    if(esp_timer_get_time() - keyDownTime > longPressTime * 1000 && longPressed == false){
-      longPressed = true;
-      keyDown = true;
-      SwitchStatementsLong(lastKeyPressed);
-      Serial.print("Long Press: ");
-      Serial.println(lastKeyPressed);
-//      digitalWrite(2, LOW);
-    }
-  }else{
-    if(keyDown == true){
-      keyDown = false;
-      lastButtonSum = 7;
-      //digitalWrite(2, LOW);
-      Serial.print("Key Up: ");
-      Serial.println(lastKeyPressed);
-      if(longPressed == false){
-        SwitchStatements(lastKeyPressed);
-      }else{
-        longPressed = false;
-      }
-    }
-  }
-}
-
-int findSum(int num){
-  int sum = 0, remainder;
-  while(num != 0){
-    remainder = num % 10;
-    sum = sum + remainder;
-    num = num / 10;
-  }
-  return sum;
 }
